@@ -1,16 +1,9 @@
-# Gửi Khuê Nhã — Android 1.3 release
+# Android 1.6.0 — versionCode 6
 
-Nhập URL HTTPS Render ở màn hình launcher rồi mở sổ tay. Workspace chạy bằng Custom Tabs, không phải WebView OAuth. Widget và local notifications dùng snapshot bạn gửi thủ công từ Cài đặt; không có sync nền tự động. Nhắc có thể trễ do tiết kiệm pin. Không có client native offline đầy đủ.
+Workspace chạy trong WebView nội bộ. Google OAuth và tài liệu ngoài dùng trình duyệt hệ thống; người dùng bấm Trở về Gửi Khuê Nhã để hoàn tất phiên trong app. Đọc BAN-1.6-APP-GOOGLE.md ở gốc repo và cập nhật backend trước khi cài APK.
 
-Đọc HUONG-DAN-TRIEN-KHAI.md ở gốc repo để cấu hình backend và cài APK. BAO-CAO-KIEM-TRA.md ghi kết quả build/kiểm tra thực tế, chưa có kiểm thử điện thoại thật.
+MainActivity chặn /auth/google và bắt đầu browser OAuth bằng state + SHA256 verifier. Backend trả mã 2 phút vào deep link; app kiểm tra state rồi WebView.postUrl đổi mã lấy HttpOnly session cookie. Không dùng JavaScript bridge, không giả user agent và không nhập Google password trong WebView.
 
-## Build trên Mac
+Build Mac: JDK17, SDK35 + build-tools35.0.0, Gradle wrapper8.11.1. Đặt ANDROID_HOME theo SDK trên máy. Chạy ./gradlew :app:assembleDebug trong apps/android. Release dùng KN_KEYSTORE_PATH, KN_KEYSTORE_PASSWORD, KN_KEY_PASSWORD, KN_KEY_ALIAS=khue-nha và ./gradlew :app:assembleRelease. Giữ cùng chứng chỉ để cập nhật đè. Không có key ký thật trong source; GitHub workflow hỗ trợ Secrets.
 
-Cài Android Studio, SDK 35 + build tools 35.0.0, JDK17. Mở apps/android để sync. Nếu có wrapper, dùng ./gradlew; nếu chưa có, dùng Gradle8.11.1 chạy gradle wrapper --gradle-version 8.11.1. Đặt ANDROID_HOME tới SDK trên máy bạn.
-
-Debug: ./gradlew :app:assembleDebug. Release: khai báo KN_KEYSTORE_PATH, KN_KEYSTORE_PASSWORD, KN_KEY_PASSWORD, KN_KEY_ALIAS=khue-nha trong môi trường riêng rồi ./gradlew :app:assembleRelease. Không ghi mật khẩu vào source. Giữ nguyên key ký và tăng versionCode cho lần sau. GitHub workflow Build signed Android APK nhận signing qua Secrets; không có key thật trong repository.
-
-APK: app/build/outputs/apk/release/app-release.apk. Có thể dùng apksigner verify --verbose --print-certs để kiểm tra chữ ký. Widget có bản chụp tối đa30 việc, cập nhật thủ công, quyền thông báo Android13+, nhắc cục bộ inexact. Cần kiểm tra trên thiết bị: nhập URL, login, 2 tài khoản, deep link, widget, quiet hours, reboot, snooze, force stop và xóa snapshot.
-
-
-Bản1.3 có ảnh logo ở drawable-nodpi/brand_logo.webp và icon launcher mipmap/adaptive. Launcher có nút Kết nối Google mở /auth/google?next=connect trên server đã chọn. Xem BAN-1.3-LOGO-GOOGLE.md.
+APK: app/build/outputs/apk/release/app-release.apk. Widget và nhắc cục bộ dùng snapshot người dùng gửi từ Cài đặt; tối đa30 việc, không sync nền tự động, nhắc inexact có thể trễ do Android. Thử trên thiết bị thật: Google login/return/cancel, hai tài khoản, process recreation, Back, cookie sau đóng mở, tài liệu ngoài, snapshot/widget/notification/reboot. Bản build thành công chưa thay thế các kiểm tra thiết bị này.

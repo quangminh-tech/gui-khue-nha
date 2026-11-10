@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
+import {Readable} from 'node:stream';
+import * as mobile from '../apps/api/src/mobile-auth.mjs';
 import * as security from '../apps/api/src/security.mjs';
 import * as flow from '../shared/google-connect.mjs';
 const env={MONGODB_URI:'mongodb+srv://placeholder.invalid',APP_ENCRYPTION_KEY:Buffer.alloc(32,5).toString('base64'),GOOGLE_CLIENT_ID:'test.apps.googleusercontent.com',GOOGLE_CLIENT_SECRET:'placeholder',APP_ORIGIN:'https://test.onrender.com'};
@@ -10,13 +12,13 @@ assert(!JSON.stringify(flow.googleSetup(env)).includes('placeholder'));
 assert.equal(flow.googleCallbackTarget({mode:'login',afterLogin:'https://evil.invalid'}),'/');
 assert(!flow.googleAuthErrorPage('<script>bad</script>').includes('<script>'));
 const tables=new Map();
-const db={collection(name){if(!tables.has(name))tables.set(name,new Map());const rows=tables.get(name);return {async insertOne(value){rows.set(value._id,{...value})},async findOne(query){const r=rows.get(query._id);return r&&(!query.expiresAt||r.expiresAt>query.expiresAt.$gt)?r:null},async findOneAndDelete(query){const r=await this.findOne(query);if(r)rows.delete(query._id);return r},async updateOne(query,update){const previous=rows.get(query._id);rows.set(query._id,{_id:query._id,...(!previous?update.$setOnInsert:{}),...previous,...update.$set})}}}};
+const db={collection(name){if(!tables.has(name))tables.set(name,new Map());const rows=tables.get(name);return {async insertOne(value){rows.set(value._id,{...value})},async findOne(query){const r=rows.get(query._id);return r&&(!query.challenge||r.challenge===query.challenge)&&(!query.expiresAt||r.expiresAt>query.expiresAt.$gt)?r:null},async findOneAndDelete(query){const r=await this.findOne(query);if(r)rows.delete(query._id);return r},async updateOne(query,update){const previous=rows.get(query._id);rows.set(query._id,{_id:query._id,...(!previous?update.$setOnInsert:{}),...previous,...update.$set})}}}};
 let account='alice',scopes='openid email profile';
 const context=vm.createContext({process,Buffer,URL,URLSearchParams,Date,AbortSignal,console,fetch:async(url)=>({ok:true,json:async()=>String(url).includes('/token')?{access_token:'provider-token',refresh_token:'provider-refresh',expires_in:3600,scope:scopes}:{sub:account,email:account+'@example.test',email_verified:true,name:account}})});
 const module=new vm.SourceTextModule(await readFile(new URL('../apps/api/src/google.mjs',import.meta.url),'utf8'),{context});
-await module.link(async(spec)=>{const exports=spec.endsWith('store.mjs')?{database:()=>db}:spec.endsWith('security.mjs')?security:flow;const keys=Object.keys(exports);return new vm.SyntheticModule(keys,function(){for(const key of keys)this.setExport(key,exports[key])},{context})});await module.evaluate();
+await module.link(async(spec)=>{const exports=spec.endsWith('store.mjs')?{database:()=>db}:spec.endsWith('security.mjs')?security:spec.endsWith('mobile-auth.mjs')?mobile:flow;const keys=Object.keys(exports);return new vm.SyntheticModule(keys,function(){for(const key of keys)this.setExport(key,exports[key])},{context})});await module.evaluate();
 const {beginGoogle,finishGoogle,googleStatus}=module.namespace;
-const capture=()=>({status:0,headers:{},writeHead(status,headers){this.status=status;this.headers=headers},end(){}});
+const capture=()=>({status:0,headers:{},writeHead(status,headers){this.status=status;this.headers=headers},end(body){this.body=body}});
 const req=(cookie='')=>({headers:{cookie}});
 const cookieValues=value=>(Array.isArray(value)?value:[value]).map(x=>x.split(';')[0]).join('; ');
 async function begin(path,cookie=''){const response=capture();await beginGoogle(req(cookie),response,new URL(path,env.APP_ORIGIN));assert.equal(response.status,302);const url=new URL(response.headers.Location);assert(url.searchParams.get('code_challenge'));return {state:url.searchParams.get('state'),cookie:cookieValues(response.headers['Set-Cookie']),url}}
@@ -30,3 +32,21 @@ grant=await begin('/auth/google?mode=connect',sessionCookie);scopes=grant.url.se
 assert(!tables.get('google_credentials').get('alice').access.includes('provider-token'));
 const retry=await begin('/auth/google?next=connect');await assert.rejects(finishGoogle(req('kn_oauth=wrong'),capture(),new URL('/auth/google/callback?state='+retry.state+'&code=mock',env.APP_ORIGIN)));
 console.log('PASS Google connect: two-stage login/consent, PKCE/state, matching account, real grant flags, fixed redirects and encrypted credentials (mock provider/database).');
+
+const verifier='v'.repeat(43),mobileState='s'.repeat(43),challenge=mobile.verifierChallenge(verifier);
+assert.throws(()=>mobile.readMobileRequest(new URL('/?mobile_state=bad',env.APP_ORIGIN)));
+const native=await begin('/auth/google?mobile_challenge='+challenge+'&mobile_state='+mobileState,sessionCookie);
+assert(native.url.searchParams.get('scope').includes('calendar.events'));
+scopes=native.url.searchParams.get('scope');
+const returned=await finish(native,sessionCookie);assert.equal(returned.status,200);
+assert(!returned.body.includes('provider-token'));assert(!returned.body.includes('kn_session'));
+const appLink=new URL(returned.body.match(/href="(guikhuenha:[^"]+)"/)[1]);
+assert.equal(appLink.searchParams.get('state'),mobileState);
+const code=appLink.searchParams.get('code');
+async function redeem(value,key=code){const response=capture();await mobile.redeemMobile(Readable.from([new URLSearchParams({code:key,verifier:value}).toString()]),response,db,env.APP_ORIGIN);return response}
+await assert.rejects(redeem('w'.repeat(43)),e=>e.status===401);
+const accepted=await redeem(verifier);assert.equal(accepted.status,303);assert.equal(accepted.headers.Location,'/');assert(accepted.headers['Set-Cookie'].includes('HttpOnly'));
+await assert.rejects(redeem(verifier),e=>e.status===401);
+const expired=await mobile.issueMobileHandoff(db,'alice',{challenge,state:mobileState});tables.get('mobile_handoffs').get(security.hash(expired.code)).expiresAt=new Date(0);
+await assert.rejects(redeem(verifier,expired.code),e=>e.status===401);
+console.log('PASS mobile handoff: full consent, return state, no provider tokens in URL, verifier binding, one-use code, expiry and HttpOnly app session (mock provider/database).');

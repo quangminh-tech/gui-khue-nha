@@ -10,6 +10,7 @@ import {workspaceRelationshipError} from '../../../server/services/workspace-val
 import {generateGemini,safeAiContext} from '../../../shared/ai.mjs';
 import {decrypt} from './security.mjs';
 import {cleanup} from './retention.mjs';
+import {redeemMobile} from './mobile-auth.mjs';
 import {googleSetup,googleAuthErrorPage} from '../../../shared/google-connect.mjs';
 const origin=process.env.APP_ORIGIN||'http://localhost:3000',port=Number(process.env.PORT||3001),publicDir=resolve(fileURLToPath(new URL('../../web/dist/',import.meta.url)));
 if(process.env.APP_ENCRYPTION_KEY)encryptionKey();
@@ -17,7 +18,8 @@ let connected=false;try{connected=!!await connectMongo()}catch{console.error('Mo
 const server=createServer(async(req,res)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');const url=new URL(req.url||'/',origin),path=url.pathname;
  try{
   if(path==='/api/health'){if(connected)await database().command({ping:1});return json(res,200,{status:connected?'ready':'demo-only',storage:connected?'mongodb':'unconfigured',googleConfigured:googleConfigured()})}
-  if(path==='/api/config')return json(res,200,{runtime:'node',googleConfigured:googleConfigured(),googlePickerConfigured:pickerConfigured(),aiKeyPersistence:connected&&!!process.env.APP_ENCRYPTION_KEY,aiConfigured:true,setup:googleSetup()});
+  if(path==='/api/config')return json(res,200,{runtime:'node',mobileAuthVersion:1,googleConfigured:googleConfigured(),googlePickerConfigured:pickerConfigured(),aiKeyPersistence:connected&&!!process.env.APP_ENCRYPTION_KEY,aiConfigured:true,setup:googleSetup()});
+  if(path==='/auth/mobile/redeem'&&req.method==='POST'){if(!connected)throw bad('Backend chưa nối MongoDB.',503);return await redeemMobile(req,res,database(),origin)}
   if(path==='/auth/google'&&req.method==='GET')return await beginGoogle(req,res,url);
   if(path==='/auth/google/callback'&&req.method==='GET')return await finishGoogle(req,res,url);
   if(path==='/api/maintenance/retention'){if(req.method!=='POST')throw bad('POST required.',405);if(!process.env.MAINTENANCE_TOKEN||!safeEqual(req.headers.authorization||'','Bearer '+process.env.MAINTENANCE_TOKEN))throw bad('Unauthorized.',401);const body=await bodyJson(req,2000);if(body.action!=='purge-completed-10-days')throw bad('Explicit cleanup action required.');return json(res,200,await cleanup())}
@@ -54,7 +56,7 @@ const server=createServer(async(req,res)=>{res.setHeader('X-Content-Type-Options
   const decoded=decodeURIComponent(path),file=resolve(publicDir,'.'+decoded);if(file!==publicDir&&!file.startsWith(publicDir+sep))throw bad('Forbidden.',403);let target=file;try{if(!(await stat(target)).isFile())target=resolve(publicDir,'index.html')}catch{target=resolve(publicDir,'index.html')}
   let bytes;try{bytes=await readFile(target)}catch{throw bad('Chưa build frontend. Chạy npm run build:web trước.',503)}
   const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.json':'application/json','.webmanifest':'application/manifest+json','.woff2':'font/woff2'};res.writeHead(200,{'Content-Type':types[extname(target)]||'application/octet-stream','Cache-Control':extname(target)==='.html'?'no-cache':'public,max-age=3600'});res.end(req.method==='HEAD'?undefined:bytes);
- }catch(e){if(res.headersSent)return res.end();const status=e.status||400;if(path.startsWith('/auth/google')){res.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});return res.end(googleAuthErrorPage(status>=500?'Máy chủ chưa sẵn sàng. Chủ app cần kiểm tra cấu hình Google và MongoDB trên Render.':e.message||'Phiên kết nối hết hạn. Hãy thử lại.'))}if(status>=500)console.error('Request failed:',path,'status',status);json(res,status,{error:status>=500?'Dịch vụ chưa sẵn sàng. Kiểm tra cấu hình backend.':e.message||'Yêu cầu chưa thành công.'})}
+ }catch(e){if(res.headersSent)return res.end();const status=e.status||400;if(path.startsWith('/auth/google')||path==='/auth/mobile/redeem'){res.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});return res.end(googleAuthErrorPage(status>=500?'Máy chủ chưa sẵn sàng. Chủ app cần kiểm tra cấu hình Google và MongoDB trên Render.':e.message||'Phiên kết nối hết hạn. Hãy thử lại.'))}if(status>=500)console.error('Request failed:',path,'status',status);json(res,status,{error:status>=500?'Dịch vụ chưa sẵn sàng. Kiểm tra cấu hình backend.':e.message||'Yêu cầu chưa thành công.'})}
 });
 server.requestTimeout=45000;server.headersTimeout=15000;server.listen(port,'0.0.0.0',()=>console.log(`Gui Khue Nha API listening on ${port}; storage=${connected?'mongodb':'demo-only'}`));
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>process.exit(0)));

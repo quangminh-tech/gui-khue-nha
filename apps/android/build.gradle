@@ -1,1 +1,26 @@
-plugins { id 'com.android.application' version '8.9.2' apply false }
+plugins { id 'com.android.application' }
+android {
+    namespace 'vn.nhipviec.mobile'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'vn.nhipviec.mobile'
+        minSdk 23
+        targetSdk 35
+        versionCode 8
+        versionName '1.7.1'
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    signingConfigs {
+        release {
+            def signingPath = System.getenv('KN_KEYSTORE_PATH')
+            if (signingPath) {
+                storeFile file(signingPath)
+                storePassword System.getenv('KN_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('KN_KEY_ALIAS') ?: 'khue-nha'
+                keyPassword System.getenv('KN_KEY_PASSWORD') ?: System.getenv('KN_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+    buildTypes { release { minifyEnabled false; signingConfig signingConfigs.release } }
+}
+dependencies { implementation 'androidx.browser:browser:1.8.0' }

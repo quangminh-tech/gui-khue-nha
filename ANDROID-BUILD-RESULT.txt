@@ -1,31 +1,7 @@
-Android 1.4.0 versionCode5; 10/11/2026.
-Gradle assembleRelease/lintVitalRelease success, same certificate as1.2/1.3. ZIP alignment verified. Default origin=https://gui-khue-nha.onrender.com.
-ServerAddress default-origin validation PASS. Network check UI compiled, not run on actual device. Live health probe timed out; DB/Google runtime NOT verified.
-
-Verifies
-Verified using v1 scheme (JAR signing): true
-Verified using v2 scheme (APK Signature Scheme v2): true
-Verified using v3 scheme (APK Signature Scheme v3): false
-Verified using v3.1 scheme (APK Signature Scheme v3.1): false
-Verified using v4 scheme (APK Signature Scheme v4): false
-Verified for SourceStamp: false
-Number of signers: 1
-Signer #1 certificate DN: CN=Gui Khue Nha, OU=Personal App, O=Gui Khue Nha, C=VN
-Signer #1 certificate SHA-256 digest: 11869aec45550e8070c26c87f95b8e0c0d9889d88d71a5d9e64414abe8de0bd6
-Signer #1 certificate SHA-1 digest: feb17f32aa7f0acea7aa42a1c5d74d41136d28ed
-Signer #1 certificate MD5 digest: 89a3721efad889170a7174738de10d7b
-Signer #1 key algorithm: RSA
-Signer #1 key size (bits): 3072
-Signer #1 public key SHA-256 digest: c31c82dd6bb37cc6faa433e25b7f93ae6a57e274ed901c287607b7759e13aac0
-Signer #1 public key SHA-1 digest: ce07bc58f6388e436805b38e78c1692199eeade6
-Signer #1 public key MD5 digest: f1f79132d8b542561716735f32580d32
-WARNING: META-INF/com/android/build/gradle/app-metadata.properties not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
-WARNING: META-INF/version-control-info.textproto not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
-WARNING: META-INF/androidx.annotation_annotation-experimental.version not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
-WARNING: META-INF/androidx.browser_browser.version not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
-WARNING: META-INF/androidx.core_core.version not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
-WARNING: META-INF/androidx.interpolator_interpolator.version not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
-WARNING: META-INF/androidx.lifecycle_lifecycle-runtime.version not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
-WARNING: META-INF/androidx.versionedparcelable_versionedparcelable.version not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
-
-APK SHA256: 34ea484cea59af94a184f19cd9ef54f321c69e3f35ac168b911ad85e4e4d74b3
+Gửi Khuê Nhã 1.7.3 — Android release
+Build SUCCESSFUL; package vn.nhipviec.mobile; versionCode 10.
+Signature certificate matches original release key; zipalign verification passed.
+APK SHA256: 2e7abfff494a1ab065a16129b9d24fe0474a3d8c0b97b96b0e3c7d27dd4e3257
+See KIEM-TRA-1.7.3.md and HUONG-DAN-1.7.3.md.
+The APK uses the Render-hosted UI. Update Render source to 1.7.3 as well.
+Not yet installed on a physical device in this session.

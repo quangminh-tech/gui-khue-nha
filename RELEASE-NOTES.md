@@ -1,3 +1,12 @@
+# 1.7.3
+
+- Save flushes pending document URL/checklist; failed saves retain draft.
+- Explicit URL, type/source, open/copy/edit/remove, child-owned document aggregation.
+- Hierarchical parent selection retains current parent, excludes self/descendants.
+- Existing project/domain choices plus free entry.
+- Picker loader timeout/retry and accurate missing-configuration hint.
+- Android versionCode10, same package/signing certificate; prebuilt web refreshed.
+
 # Gửi Khuê Nhã 1.2 — Android Release
 
 Bản Android được chuẩn bị để cài trực tiếp ngoài Play Store. Nhập URL máy chủ Render trong app; không hardcode URL Site demo riêng tư. Giao diện công việc vẫn là web responsive mở bằng Android Custom Tabs, dùng phiên đăng nhập trình duyệt. Widget và lịch nhắc cục bộ là native. Đây không phải client native offline đầy đủ.

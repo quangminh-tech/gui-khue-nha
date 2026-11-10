@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import {create,act} from 'react-test-renderer';
+import {createServer} from 'vite';
+globalThis.IS_REACT_ACT_ENVIRONMENT=true;globalThis.document={body:{style:{overflow:''}}};globalThis.window={addEventListener(){},removeEventListener(){}};
+const vite=await createServer({configFile:'apps/web/vite.config.ts',server:{middlewareMode:true},appType:'custom'});
+try{
+ const {default:Editor}=await vite.ssrLoadModule('/@fs/'+process.cwd()+'/features/app/task-editor.tsx');
+ const {blank}=await vite.ssrLoadModule('/@fs/'+process.cwd()+'/lib/journal.ts');
+ const {writeGuestJournal,readGuestJournal}=await vite.ssrLoadModule('/@fs/'+process.cwd()+'/features/app/guest-storage.ts');
+ const {DEFAULT_SETTINGS}=await vite.ssrLoadModule('/@fs/'+process.cwd()+'/lib/app-model.ts');
+ const {dataSchema}=await vite.ssrLoadModule('/@fs/'+process.cwd()+'/lib/journal-schema.ts');
+ const base={...blank(),project:'AMORA',title:'AMORA parent',id:'root'};
+ let tasks=[base,{...base,id:'child',title:'Meeting TMA',parentId:'root'},{...base,id:'grand',title:'Grandchild',parentId:'child'},{...base,id:'other',title:'BCARE parent',project:'CÔNG TY'},{...base,id:'duplicate',title:'Meeting TMA',parentId:'other'}];
+ const memory=new Map(),storage={getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v)};
+ let closed=0,rejectSave=false,renderer,opened;
+ const props=()=>({initial:tasks.find(t=>t.id==='child'),tasks,busy:false,googleReady:false,driveConnected:true,pickerConfigured:false,calendarReady:true,onClose:()=>closed++,onSave:async task=>{if(rejectSave)return false;const data=dataSchema.parse({members:[],settings:DEFAULT_SETTINGS,tasks:tasks.map(t=>t.id===task.id?task:t)});writeGuestJournal(data,storage);tasks=readGuestJournal(storage).data.tasks;return true},onOpen:t=>opened=t,onChild(){},onDelete(){},onDrive:async()=>[],onCalendar(){}});
+ const txt=node=>typeof node==='string'?node:(node.children||[]).map(txt).join('');
+ const button=name=>renderer.root.findAllByType('button').find(b=>txt(b)===name);
+ const input=label=>renderer.root.findAllByType('input').find(i=>i.props['aria-label']===label);
+ const click=async name=>{const b=button(name);assert(b,'Button '+name);await act(async()=>b.props.onClick())};
+ const fill=async(label,value)=>{const i=input(label);assert(i,'Input '+label);await act(async()=>i.props.onChange({target:{value}}))};
+ const mount=async()=>{if(renderer)await act(async()=>renderer.unmount());await act(async()=>{renderer=create(React.createElement(Editor,props()))})};
+ const save=async()=>act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));
+ await mount();await click('Chỉnh sửa');await fill('Tên tài liệu','Budget');await fill('Link tài liệu','https://docs.google.com/spreadsheets/d/example/edit');await fill('Lĩnh vực','BNI MỚI');
+ rejectSave=true;await save();assert.equal(closed,0);assert.equal(input('Link tài liệu').props.value,'https://docs.google.com/spreadsheets/d/example/edit');assert(renderer.root.findAllByProps({role:'alert'}).length);
+ rejectSave=false;await save();assert.equal(closed,1);let child=tasks.find(t=>t.id==='child');assert.equal(child.links.length,1);assert.equal(child.links[0].kind,'sheet');assert.equal(child.parentId,'root');assert.equal(child.project,'BNI MỚI');
+ await mount();assert(renderer.root.findAllByType('a').some(a=>a.props.href===child.links[0].url&&txt(a)===child.links[0].url));await click('Chỉnh sửa');
+ assert(renderer.root.findByType('datalist').findAllByType('option').some(o=>o.props.value==='BNI MỚI'));
+ const current=renderer.root.findByProps({className:'kn-parent-current'});assert.equal(txt(current),'AMORA parent');await act(async()=>current.props.onClick());
+ const tree=renderer.root.findByProps({className:'kn-parent-tree'});assert(!txt(tree).includes('Grandchild'));assert(!txt(tree).includes('Meeting TMA'));
+ const expand=renderer.root.findByProps({'aria-label':'Mở nhánh BCARE parent'});await act(async()=>expand.props.onClick());assert(txt(renderer.root.findByProps({className:'kn-parent-tree'})).includes('Meeting TMA'));
+ const row=renderer.root.findAllByProps({className:'kn-parent-row'}).find(r=>txt(r).startsWith('BCARE parent'));await act(async()=>row.findAllByType('button').at(-1).props.onClick());await save();assert.equal(tasks.find(t=>t.id==='child').parentId,'other');assert.equal(tasks.find(t=>t.id==='grand').parentId,'child');
+ await mount();await click('Chỉnh sửa');await click('Sửa');await fill('Tên tài liệu','Updated budget');await save();assert.equal(tasks.find(t=>t.id==='child').links[0].title,'Updated budget');assert.equal(tasks.find(t=>t.id==='child').links.length,1);
+ await mount();await click('Chỉnh sửa');await click('Gỡ');await save();assert.equal(tasks.find(t=>t.id==='child').links.length,0);
+ // Parent view must show child-owned docs without copying them into the parent.
+ tasks=tasks.map(t=>t.id==='child'?{...t,links:child.links}:t);await act(async()=>renderer.unmount());await act(async()=>{renderer=create(React.createElement(Editor,{...props(),initial:tasks.find(t=>t.id==='other')}))});await click('Trong việc con: Meeting TMA →');assert.equal(opened.id,'child');assert.equal(tasks.find(t=>t.id==='other').links?.length||0,0);
+ await act(async()=>renderer.unmount());
+ console.log('PASS React interaction: paste → Save without + → schema/local restore → reopen; failed-save draft retained; domain select/new; current parent unchanged; tree expand/select with self/descendants excluded; move retains subtree; edit/remove; parent docs open owning child. Not a device/browser or real Google/Mongo test.');
+}finally{await vite.close()}

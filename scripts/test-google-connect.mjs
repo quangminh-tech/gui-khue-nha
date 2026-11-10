@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
+import * as security from '../apps/api/src/security.mjs';
+import * as flow from '../shared/google-connect.mjs';
+const env={MONGODB_URI:'mongodb+srv://placeholder.invalid',APP_ENCRYPTION_KEY:Buffer.alloc(32,5).toString('base64'),GOOGLE_CLIENT_ID:'test.apps.googleusercontent.com',GOOGLE_CLIENT_SECRET:'placeholder',APP_ORIGIN:'https://test.onrender.com'};
+Object.assign(process.env,env);
+assert.deepEqual(flow.googleSetup({}).missing,['MONGODB_URI','APP_ENCRYPTION_KEY','GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET']);
+assert(!JSON.stringify(flow.googleSetup(env)).includes('placeholder'));
+assert.equal(flow.googleCallbackTarget({mode:'login',afterLogin:'https://evil.invalid'}),'/');
+assert(!flow.googleAuthErrorPage('<script>bad</script>').includes('<script>'));
+const tables=new Map();
+const db={collection(name){if(!tables.has(name))tables.set(name,new Map());const rows=tables.get(name);return {async insertOne(value){rows.set(value._id,{...value})},async findOne(query){const r=rows.get(query._id);return r&&(!query.expiresAt||r.expiresAt>query.expiresAt.$gt)?r:null},async findOneAndDelete(query){const r=await this.findOne(query);if(r)rows.delete(query._id);return r},async updateOne(query,update){const previous=rows.get(query._id);rows.set(query._id,{_id:query._id,...(!previous?update.$setOnInsert:{}),...previous,...update.$set})}}}};
+let account='alice',scopes='openid email profile';
+const context=vm.createContext({process,Buffer,URL,URLSearchParams,Date,AbortSignal,console,fetch:async(url)=>({ok:true,json:async()=>String(url).includes('/token')?{access_token:'provider-token',refresh_token:'provider-refresh',expires_in:3600,scope:scopes}:{sub:account,email:account+'@example.test',email_verified:true,name:account}})});
+const module=new vm.SourceTextModule(await readFile(new URL('../apps/api/src/google.mjs',import.meta.url),'utf8'),{context});
+await module.link(async(spec)=>{const exports=spec.endsWith('store.mjs')?{database:()=>db}:spec.endsWith('security.mjs')?security:flow;const keys=Object.keys(exports);return new vm.SyntheticModule(keys,function(){for(const key of keys)this.setExport(key,exports[key])},{context})});await module.evaluate();
+const {beginGoogle,finishGoogle,googleStatus}=module.namespace;
+const capture=()=>({status:0,headers:{},writeHead(status,headers){this.status=status;this.headers=headers},end(){}});
+const req=(cookie='')=>({headers:{cookie}});
+const cookieValues=value=>(Array.isArray(value)?value:[value]).map(x=>x.split(';')[0]).join('; ');
+async function begin(path,cookie=''){const response=capture();await beginGoogle(req(cookie),response,new URL(path,env.APP_ORIGIN));assert.equal(response.status,302);const url=new URL(response.headers.Location);assert(url.searchParams.get('code_challenge'));return {state:url.searchParams.get('state'),cookie:cookieValues(response.headers['Set-Cookie']),url}}
+async function finish(start,sessionCookie=''){const response=capture();await finishGoogle(req([sessionCookie,start.cookie].filter(Boolean).join('; ')),response,new URL('/auth/google/callback?code=mock-code&state='+start.state,env.APP_ORIGIN));return response}
+const first=await begin('/auth/google?next=connect');assert.equal(first.url.searchParams.get('scope'),'openid email profile');
+const loggedIn=await finish(first);assert.equal(loggedIn.headers.Location,'/auth/google?mode=connect');const sessionCookie=cookieValues(loggedIn.headers['Set-Cookie']).split('; ').find(x=>x.startsWith('kn_session='));
+let status=await googleStatus({_id:'alice',email:'alice@example.test'});assert.equal(status.driveConnected,false);assert.equal(status.calendarConnected,false);
+let grant=await begin('/auth/google?mode=connect',sessionCookie);assert(grant.url.searchParams.get('scope').includes('calendar.events'));
+account='bob';await assert.rejects(finish(grant,sessionCookie),e=>e.status===403);assert(!tables.get('users').has('bob'));account='alice';
+grant=await begin('/auth/google?mode=connect',sessionCookie);scopes=grant.url.searchParams.get('scope');const connected=await finish(grant,sessionCookie);assert.equal(connected.headers.Location,'/');status=await googleStatus({_id:'alice',email:'alice@example.test'});assert(status.driveConnected&&status.calendarConnected);
+assert(!tables.get('google_credentials').get('alice').access.includes('provider-token'));
+const retry=await begin('/auth/google?next=connect');await assert.rejects(finishGoogle(req('kn_oauth=wrong'),capture(),new URL('/auth/google/callback?state='+retry.state+'&code=mock',env.APP_ORIGIN)));
+console.log('PASS Google connect: two-stage login/consent, PKCE/state, matching account, real grant flags, fixed redirects and encrypted credentials (mock provider/database).');

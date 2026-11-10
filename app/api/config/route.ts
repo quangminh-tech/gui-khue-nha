@@ -1,0 +1,1 @@
+export async function GET(){return Response.json({runtime:'sites',googleConfigured:false,googlePickerConfigured:false,aiKeyPersistence:false,aiConfigured:true},{headers:{'Cache-Control':'private,no-store'}})}

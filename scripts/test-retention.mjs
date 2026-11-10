@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { pruneCompleted,retentionCutoff } from '../lib/retention.ts';
+const now=new Date('2026-11-09T12:00:00Z');
+const t=(id,completedAt,status='done',parentId=null)=>({id,completedAt,status,parentId});
+assert.equal(retentionCutoff(now),'2026-10-30');
+assert.equal(retentionCutoff(new Date('2026-11-08T17:00:00Z')),'2026-10-30');
+assert.equal(retentionCutoff(new Date('2026-11-08T16:59:59Z')),'2026-10-29');
+assert.equal(pruneCompleted([t('old','2026-10-29')],now).deletedCount,1);
+assert.equal(pruneCompleted([t('exactly-10','2026-10-30')],now).deletedCount,0);
+assert.equal(pruneCompleted([t('recent','2026-11-08')],now).deletedCount,0);
+assert.equal(pruneCompleted([t('unfinished','2020-01-01','todo'),t('doing','2020-01-01','doing')],now).deletedCount,0);
+assert.equal(pruneCompleted([t('missing',null),t('bad','2026-02-30'),t('text','yesterday'),t('time','2020-01-01T00:00:00Z')],now).deletedCount,0);
+assert.equal(pruneCompleted([t('parent','2020-01-01'),t('live-child',null,'todo','parent')],now).deletedCount,1);
+assert.equal(pruneCompleted([t('parent','2020-01-01'),t('live-child',null,'todo','parent')],now).tasks[0].parentId,null);
+assert.equal(pruneCompleted([t('parent','2020-01-01'),t('new-child','2026-11-08','done','parent')],now).deletedCount,1);
+assert.equal(pruneCompleted([t('parent','2020-01-01'),t('old-child','2020-02-01','done','parent')],now).deletedCount,2);
+assert.deepEqual(pruneCompleted([t('parent',null,'doing'),t('old-child','2020-02-01','done','parent')],now).tasks.map(t=>t.id),['parent']);
+assert.equal(pruneCompleted([t('a','2020-01-01','done','b'),t('b','2020-01-01','done','a')],now).deletedCount,0);
+assert.equal(pruneCompleted([t('same','2020-01-01'),t('same',null,'todo')],now).deletedCount,0);
+const input=[t('parent','2020-01-01'),t('child','2020-02-01','done','parent'),t('keep',null,'todo')];const snapshot=JSON.stringify(input);const result=pruneCompleted(input,now);assert.equal(JSON.stringify(input),snapshot);assert.equal(pruneCompleted(result.tasks,now).deletedCount,0);
+console.log('PASS: 10-day cutoff, Vietnam midnight, exact boundary, unfinished tasks, invalid dates, parent/child protection, cycles, duplicates, immutability and idempotence.');
+
+assert.equal(pruneCompleted([t('root',null,'doing'),t('old','2020-01-01','done','root'),t('keep',null,'todo','old')],now).tasks.find(t=>t.id==='keep').parentId,'root');

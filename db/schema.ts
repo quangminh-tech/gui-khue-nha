@@ -1,0 +1,2 @@
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+export const workspaces = sqliteTable('workspaces', { owner: text('owner').primaryKey(), data: text('data').notNull(), version: integer('version').notNull().default(1), retentionCheckedAt: text('retention_checked_at'), retentionDeletedCount: integer('retention_deleted_count').notNull().default(0), retentionDeletedTotal: integer('retention_deleted_total').notNull().default(0) });

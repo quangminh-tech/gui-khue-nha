@@ -1,0 +1,6 @@
+import type {Task} from './journal';
+export function deadlineAt(task:Pick<Task,'due'|'time'>){return new Date(`${task.due}T${task.time}:00+07:00`).getTime()}
+export function deadlineState(task:Task,now=Date.now()):'done'|'late'|'soon'|'upcoming'{if(task.status==='done')return 'done';const time=deadlineAt(task);if(time<now)return 'late';if(time<=now+86400000)return 'soon';return 'upcoming'}
+export function deadlineText(task:Task,now=Date.now()){const state=deadlineState(task,now);if(state==='done')return 'Đã hoàn thành';const minutes=Math.max(1,Math.round(Math.abs(deadlineAt(task)-now)/60000)),duration=minutes<60?minutes+' phút':minutes<1440?Math.floor(minutes/60)+' giờ':Math.floor(minutes/1440)+' ngày';return state==='late'?'Trễ '+duration:state==='soon'?'Còn '+duration:'Đến '+task.due.split('-').reverse().slice(0,2).join('/')}
+export function isQuietTime(start:string,end:string,now=new Date()){if(start===end)return false;const time=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now);return start<end?time>=start&&time<end:time>=start||time<end}
+export function reminderAt(task:Task){return task.reminder===0?null:deadlineAt(task)-(task.reminder??15)*60000}

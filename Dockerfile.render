@@ -1,0 +1,14 @@
+# Frontend is the verified prebuilt apps/web/dist shipped in this release.
+# After editing the UI, rebuild it before pushing: npx --yes pnpm@11.25.0 run build:web
+FROM node:24-bookworm-slim
+WORKDIR /app
+COPY apps/api/package.json apps/api/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
+COPY apps/api/src ./apps/api/src
+COPY apps/web/dist ./apps/web/dist
+COPY shared ./shared
+COPY lib ./lib
+COPY server/services ./server/services
+ENV NODE_ENV=production
+EXPOSE 10000
+CMD ["node", "--experimental-strip-types", "apps/api/src/index.mjs"]

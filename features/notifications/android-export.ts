@@ -1,0 +1,6 @@
+import type {Task} from '../../lib/journal';
+import type {AppSettings} from '../../lib/app-model';
+import {leafTasks,taskProgress} from '../../lib/app-model';
+import {deadlineAt} from '../../lib/dashboard';
+export function androidSnapshot(tasks:Task[],settings:AppSettings){const leaves=leafTasks(tasks),pending=leaves.filter(t=>t.status!=='done').sort((a,b)=>deadlineAt(a)-deadlineAt(b)).slice(0,30);return {version:1,owner:settings.name,character:settings.character,ringtone:settings.ringtone,sound:settings.soundEnabled,volume:settings.notificationVolume,quietStart:settings.quietStart,quietEnd:settings.quietEnd,progress:Math.round(leaves.reduce((sum,t)=>sum+taskProgress(tasks,t),0)/(leaves.length||1)),syncedAt:new Date().toISOString(),tasks:pending.map(t=>({id:t.id,title:t.title.slice(0,120),dueAt:deadlineAt(t),reminder:t.reminder??15,progress:taskProgress(tasks,t)}))}}
+export function openAndroidCompanion(tasks:Task[],settings:AppSettings){const payload=JSON.stringify(androidSnapshot(tasks,settings));if(payload.length>30000)throw Error('Bản nhắc quá lớn. Giảm số công việc cần nhắc.');if(!/Android/i.test(navigator.userAgent))throw Error('Mở app này trên điện thoại Android đã cài bản APK để gửi nhắc việc và widget.');location.href='guikhuenha://reminders?data='+encodeURIComponent(payload)}

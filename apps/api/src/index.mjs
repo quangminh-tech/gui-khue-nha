@@ -10,15 +10,18 @@ import {workspaceRelationshipError} from '../../../server/services/workspace-val
 import {generateGemini,safeAiContext} from '../../../shared/ai.mjs';
 import {decrypt} from './security.mjs';
 import {cleanup} from './retention.mjs';
+import {createCalendarSync} from './calendar-sync.mjs';
+import {androidSnapshot} from '../../../shared/android-snapshot.mjs';
 import {redeemMobile} from './mobile-auth.mjs';
 import {googleSetup,googleAuthErrorPage} from '../../../shared/google-connect.mjs';
 const origin=process.env.APP_ORIGIN||'http://localhost:3000',port=Number(process.env.PORT||3001),publicDir=resolve(fileURLToPath(new URL('../../web/dist/',import.meta.url)));
 if(process.env.APP_ENCRYPTION_KEY)encryptionKey();
 let connected=false;try{connected=!!await connectMongo()}catch{console.error('MongoDB connection failed. Check private environment variables and Atlas Network Access.');process.exit(1)}
+const calendar=createCalendarSync({db:database,getWorkspace,saveWorkspace,googleToken});
 const server=createServer(async(req,res)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');const url=new URL(req.url||'/',origin),path=url.pathname;
  try{
   if(path==='/api/health'){if(connected)await database().command({ping:1});return json(res,200,{status:connected?'ready':'demo-only',storage:connected?'mongodb':'unconfigured',googleConfigured:googleConfigured()})}
-  if(path==='/api/config')return json(res,200,{runtime:'node',mobileAuthVersion:1,googleConfigured:googleConfigured(),googlePickerConfigured:pickerConfigured(),aiKeyPersistence:connected&&!!process.env.APP_ENCRYPTION_KEY,aiConfigured:true,setup:googleSetup()});
+  if(path==='/api/config')return json(res,200,{runtime:'node',mobileAuthVersion:1,calendarSyncVersion:1,widgetSyncVersion:1,googleConfigured:googleConfigured(),googlePickerConfigured:pickerConfigured(),aiKeyPersistence:connected&&!!process.env.APP_ENCRYPTION_KEY,aiConfigured:true,setup:googleSetup()});
   if(path==='/auth/mobile/redeem'&&req.method==='POST'){if(!connected)throw bad('Backend chưa nối MongoDB.',503);return await redeemMobile(req,res,database(),origin)}
   if(path==='/auth/google'&&req.method==='GET')return await beginGoogle(req,res,url);
   if(path==='/auth/google/callback'&&req.method==='GET')return await finishGoogle(req,res,url);
@@ -26,6 +29,9 @@ const server=createServer(async(req,res)=>{res.setHeader('X-Content-Type-Options
   if(path.startsWith('/api/')){
    if(req.method!=='GET'&&req.headers.origin!==origin)throw bad('Yêu cầu khác nguồn không được chấp nhận.',403);
    const user=connected?await currentUser(req):null;if(!user)throw bad('Đăng nhập Google để lưu vào tài khoản.',401);
+   if(path==='/api/android/snapshot'&&req.method==='GET'){const w=await getWorkspace(user._id);return json(res,200,androidSnapshot(w.data?.tasks||[],{...w.data?.settings,name:w.data?.settings?.name||user.name}))}
+   if(path==='/api/google/calendar/status'&&req.method==='GET')return json(res,200,await calendar.status(user._id));
+   if(path==='/api/google/calendar/two-way'&&req.method==='POST'){const body=await bodyJson(req,2000);if(typeof body.enabled==='boolean')await calendar.configure(user._id,body.enabled);return json(res,200,body.enabled===false?await calendar.status(user._id):await calendar.sync(user._id))}
    if(path==='/api/me'&&req.method==='GET')return json(res,200,{id:user._id,name:user.name,email:user.email});
    if(path==='/api/auth/logout'&&req.method==='POST'){await database().collection('sessions').deleteOne({_id:hash(cookies(req).kn_session||'')});res.setHeader('Set-Cookie',cookie('kn_session','',0,origin));return json(res,200,{ok:true})}
    if(path==='/api/workspace'){

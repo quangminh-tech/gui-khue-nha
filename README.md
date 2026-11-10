@@ -1,3 +1,9 @@
+# Gửi Khuê Nhã 1.7
+
+Đọc **BAN-1.7-CALENDAR-WIDGET.md** trước: Calendar hai chiều bật trong trang Lịch, widget tự lấy việc hôm nay/khẩn cấp, mở task để tick checklist trước rồi Chỉnh sửa riêng. Cập nhật cả Render và APK1.7.
+
+Các hướng dẫn1.6 phía dưới mô tả cấu hình Google ban đầu; hành vi Calendar/widget/checklist được thay thế bởi1.7.
+
 # Gửi Khuê Nhã 1.6
 
 Đọc **BAN-1.6-APP-GOOGLE.md** để cập nhật GitHub/Render, tạo Google OAuth và cài APK. Cập nhật backend trước khi thử APK1.6: mobile handoff là route mới.

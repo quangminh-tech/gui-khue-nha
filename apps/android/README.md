@@ -1,3 +1,7 @@
+# Android1.7 — versionCode7
+
+Widget tự tải endpoint /api/android/snapshot qua cookie phiên riêng. Cập nhật khi mở app, sau lưu và khoảng60giây khi foreground; JobScheduler nền khoảng15phút, Android có thể trì hoãn. Mỗi dòng mở task. Đọc BAN-1.7-CALENDAR-WIDGET.md ở root để cập nhật backend trước.
+
 # Android 1.6.0 — versionCode 6
 
 Workspace chạy trong WebView nội bộ. Google OAuth và tài liệu ngoài dùng trình duyệt hệ thống; người dùng bấm Trở về Gửi Khuê Nhã để hoàn tất phiên trong app. Đọc BAN-1.6-APP-GOOGLE.md ở gốc repo và cập nhật backend trước khi cài APK.

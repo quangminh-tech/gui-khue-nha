@@ -1,6 +1,6 @@
 {
   "name": "gui-khue-nha",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -15,7 +15,7 @@
     "dev:web": "vite --config apps/web/vite.config.ts",
     "build:web": "vite build --config apps/web/vite.config.ts",
     "start:api": "node --experimental-strip-types --env-file-if-exists=.env apps/api/src/index.mjs",
-    "test:app": "node scripts/test-pomodoro.mjs && node scripts/test-resources.mjs && node scripts/test-retention.mjs && node scripts/test-app.mjs && node scripts/test-http.mjs && node --experimental-vm-modules scripts/test-google-connect.mjs",
+    "test:app": "node scripts/test-pomodoro.mjs && node scripts/test-resources.mjs && node scripts/test-retention.mjs && node scripts/test-app.mjs && node scripts/test-http.mjs && node --experimental-vm-modules scripts/test-google-connect.mjs && node scripts/test-calendar-widget.mjs && node scripts/test-task-detail.mjs",
     "dev:full": "node scripts/dev-full.mjs"
   },
   "dependencies": {

@@ -1,8 +1,9 @@
+import {renewSession} from './session.mjs';
 import {createServer} from 'node:http';
 import {readFile,stat} from 'node:fs/promises';
 import {resolve,extname,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {connectMongo,database,getWorkspace,saveWorkspace,claimAiUsage} from './store.mjs';
+import {connectMongo,database,withMongoTransaction,getWorkspace,saveWorkspace,claimAiUsage} from './store.mjs';
 import {bodyJson,json,bad,cookies,cookie,hash,safeEqual,encrypt,encryptionKey} from './security.mjs';
 import {googleConfigured,pickerConfigured,currentUser,beginGoogle,finishGoogle,googleStatus,googleToken,selectFiles,thumbnail,syncCalendar,disconnectGoogle} from './google.mjs';
 import {dataSchema} from '../../../lib/journal-schema.ts';
@@ -21,8 +22,8 @@ const calendar=createCalendarSync({db:database,getWorkspace,saveWorkspace,google
 const server=createServer(async(req,res)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');const url=new URL(req.url||'/',origin),path=url.pathname;
  try{
   if(path==='/api/health'){if(connected)await database().command({ping:1});return json(res,200,{status:connected?'ready':'demo-only',storage:connected?'mongodb':'unconfigured',googleConfigured:googleConfigured()})}
-  if(path==='/api/config')return json(res,200,{runtime:'node',mobileAuthVersion:1,calendarSyncVersion:1,widgetSyncVersion:1,googleConfigured:googleConfigured(),googlePickerConfigured:pickerConfigured(),aiKeyPersistence:connected&&!!process.env.APP_ENCRYPTION_KEY,aiConfigured:true,setup:googleSetup()});
-  if(path==='/auth/mobile/redeem'&&req.method==='POST'){if(!connected)throw bad('Backend chưa nối MongoDB.',503);return await redeemMobile(req,res,database(),origin)}
+  if(path==='/api/config')return json(res,200,{runtime:'node',release:'1.7.2',commit:process.env.RENDER_GIT_COMMIT?.slice(0,12)||null,mobileAuthVersion:2,calendarSyncVersion:1,widgetSyncVersion:1,googleConfigured:googleConfigured(),googlePickerConfigured:pickerConfigured(),aiKeyPersistence:connected&&!!process.env.APP_ENCRYPTION_KEY,aiConfigured:true,setup:googleSetup()});
+  if(path==='/auth/mobile/redeem'&&req.method==='POST'){if(!connected)throw bad('Backend chưa nối MongoDB.',503);return await redeemMobile(req,res,database(),origin,withMongoTransaction)}
   if(path==='/auth/google'&&req.method==='GET')return await beginGoogle(req,res,url);
   if(path==='/auth/google/callback'&&req.method==='GET')return await finishGoogle(req,res,url);
   if(path==='/api/maintenance/retention'){if(req.method!=='POST')throw bad('POST required.',405);if(!process.env.MAINTENANCE_TOKEN||!safeEqual(req.headers.authorization||'','Bearer '+process.env.MAINTENANCE_TOKEN))throw bad('Unauthorized.',401);const body=await bodyJson(req,2000);if(body.action!=='purge-completed-10-days')throw bad('Explicit cleanup action required.');return json(res,200,await cleanup())}
@@ -32,6 +33,7 @@ const server=createServer(async(req,res)=>{res.setHeader('X-Content-Type-Options
    if(path==='/api/android/snapshot'&&req.method==='GET'){const w=await getWorkspace(user._id);return json(res,200,androidSnapshot(w.data?.tasks||[],{...w.data?.settings,name:w.data?.settings?.name||user.name}))}
    if(path==='/api/google/calendar/status'&&req.method==='GET')return json(res,200,await calendar.status(user._id));
    if(path==='/api/google/calendar/two-way'&&req.method==='POST'){const body=await bodyJson(req,2000);if(typeof body.enabled==='boolean')await calendar.configure(user._id,body.enabled);return json(res,200,body.enabled===false?await calendar.status(user._id):await calendar.sync(user._id))}
+   if(path==='/api/auth/session'&&req.method==='POST')return json(res,200,await renewSession(req,res,database(),origin));
    if(path==='/api/me'&&req.method==='GET')return json(res,200,{id:user._id,name:user.name,email:user.email});
    if(path==='/api/auth/logout'&&req.method==='POST'){await database().collection('sessions').deleteOne({_id:hash(cookies(req).kn_session||'')});res.setHeader('Set-Cookie',cookie('kn_session','',0,origin));return json(res,200,{ok:true})}
    if(path==='/api/workspace'){
@@ -62,7 +64,7 @@ const server=createServer(async(req,res)=>{res.setHeader('X-Content-Type-Options
   const decoded=decodeURIComponent(path),file=resolve(publicDir,'.'+decoded);if(file!==publicDir&&!file.startsWith(publicDir+sep))throw bad('Forbidden.',403);let target=file;try{if(!(await stat(target)).isFile())target=resolve(publicDir,'index.html')}catch{target=resolve(publicDir,'index.html')}
   let bytes;try{bytes=await readFile(target)}catch{throw bad('Chưa build frontend. Chạy npm run build:web trước.',503)}
   const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.jpg':'image/jpeg','.json':'application/json','.webmanifest':'application/manifest+json','.woff2':'font/woff2'};res.writeHead(200,{'Content-Type':types[extname(target)]||'application/octet-stream','Cache-Control':extname(target)==='.html'?'no-cache':'public,max-age=3600'});res.end(req.method==='HEAD'?undefined:bytes);
- }catch(e){if(res.headersSent)return res.end();const status=e.status||400;if(path.startsWith('/auth/google')||path==='/auth/mobile/redeem'){res.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});return res.end(googleAuthErrorPage(status>=500?'Máy chủ chưa sẵn sàng. Chủ app cần kiểm tra cấu hình Google và MongoDB trên Render.':e.message||'Phiên kết nối hết hạn. Hãy thử lại.'))}if(status>=500)console.error('Request failed:',path,'status',status);json(res,status,{error:status>=500?'Dịch vụ chưa sẵn sàng. Kiểm tra cấu hình backend.':e.message||'Yêu cầu chưa thành công.'})}
+ }catch(e){if(res.headersSent)return res.end();const status=e.status||400;if(path==='/auth/mobile/redeem'&&req.headers.accept?.includes('application/json'))return json(res,status,{error:status>=500?'Máy chủ tạm thời chưa nhận được phiên. Hãy thử lại.':e.message});if(path.startsWith('/auth/google')||path==='/auth/mobile/redeem'){res.writeHead(status,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});return res.end(googleAuthErrorPage(status>=500?'Máy chủ chưa sẵn sàng. Chủ app cần kiểm tra cấu hình Google và MongoDB trên Render.':e.message||'Phiên kết nối hết hạn. Hãy thử lại.'))}if(status>=500)console.error('Request failed:',path,'status',status);json(res,status,{error:status>=500?'Dịch vụ chưa sẵn sàng. Kiểm tra cấu hình backend.':e.message||'Yêu cầu chưa thành công.'})}
 });
 server.requestTimeout=45000;server.headersTimeout=15000;server.listen(port,'0.0.0.0',()=>console.log(`Gui Khue Nha API listening on ${port}; storage=${connected?'mongodb':'demo-only'}`));
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>process.exit(0)));

@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';import {Readable} from 'node:stream';
+import {issueMobileHandoff,verifierChallenge,redeemMobile} from '../apps/api/src/mobile-auth.mjs';
+import {renewSession} from '../apps/api/src/session.mjs';import {hash} from '../apps/api/src/security.mjs';
+process.env.APP_ENCRYPTION_KEY=Buffer.alloc(32,3).toString('base64');
+let tables=new Map(),failInsert=false,failUpdate=false,queue=Promise.resolve();
+const match=(r,q)=>Object.entries(q).every(([k,v])=>v?.$gt?r[k]>v.$gt:r[k]===v);
+const db={collection(name){if(!tables.has(name))tables.set(name,new Map());const rows=tables.get(name);return {async findOne(q){return [...rows.values()].find(r=>match(r,q))||null},async insertOne(r){if(failInsert&&name==='sessions')throw Error('DB insert failure');rows.set(r._id,structuredClone(r))},async updateOne(q,u){if(failUpdate&&name==='mobile_handoffs')throw Error('DB update failure');const r=[...rows.values()].find(r=>match(r,q));if(r)Object.assign(r,u.$set);return {matchedCount:r?1:0}}}}};
+const transact=fn=>{const job=queue.then(async()=>{const backup=structuredClone(tables);try{return await fn({})}catch(e){tables=backup;throw e}});queue=job.catch(()=>{});return job};
+const origin='https://test.onrender.com',verifier='v'.repeat(43),challenge=verifierChallenge(verifier);
+const issued=await issueMobileHandoff(db,'owner-a',{challenge,state:'s'.repeat(43)});
+const req=(key=verifier)=>Object.assign(Readable.from([new URLSearchParams({code:issued.code,verifier:key}).toString()]),{headers:{accept:'application/json'}});
+const response=()=>({headers:{},writeHead(status,h){this.status=status;Object.assign(this.headers,h)},setHeader(k,v){this.headers[k]=v},end(body){this.body=body}});
+async function redeem(key=verifier){const r=response();await redeemMobile(req(key),r,db,origin,transact);return r}
+await assert.rejects(redeem('w'.repeat(43)),e=>e.status===401);
+failInsert=true;await assert.rejects(redeem(),/DB insert/);failInsert=false;assert(!tables.get('mobile_handoffs').get(hash(issued.code)).usedAt);
+failUpdate=true;await assert.rejects(redeem(),/DB update/);failUpdate=false;assert.equal(tables.get('sessions')?.size||0,0,'rollback partially inserted session');
+const [a,b]=await Promise.all([redeem(),redeem()]);assert.equal(a.status,200);assert.equal(a.headers['Set-Cookie'],b.headers['Set-Cookie']);assert.equal(tables.get('sessions').size,1);assert(!a.body.includes('kn_session'));assert(a.headers['Set-Cookie'].includes('HttpOnly'));
+const handoff=tables.get('mobile_handoffs').get(hash(issued.code));handoff.usedAt=new Date(Date.now()-61000);await assert.rejects(redeem(),e=>e.status===401);handoff.usedAt=new Date();tables.get('sessions').clear();await assert.rejects(redeem(),e=>e.status===401,'cannot resurrect logout');
+const now=new Date(),token='t'.repeat(43),session={_id:hash(token),owner:'owner-a',createdAt:new Date(+now-60*86400000),absoluteExpiresAt:new Date(+now+30*86400000),expiresAt:new Date(+now+86400000)};tables.get('sessions').set(session._id,session);const r=response();await renewSession({headers:{cookie:'kn_session='+token}},r,db,origin,now);assert(+session.expiresAt<=+session.absoluteExpiresAt);assert(+session.expiresAt>+now+29*86400000);assert(r.headers['Set-Cookie'].includes('HttpOnly'));session.absoluteExpiresAt=new Date(+now-1);await assert.rejects(renewSession({headers:{cookie:'kn_session='+token}},response(),db,origin,now),e=>e.status===401);
+console.log('PASS recovery: transaction rollback at both writes; wrong verifier; concurrent/lost-response retry gets same session; retry cutoff; logout cannot resurrect; rolling session and absolute limit. Mock DB transaction.');

@@ -19,3 +19,9 @@ Gradle assembleRelease và lintVitalRelease đã thành công; APK release 1.3.0
 
 
 Bản1.3: đã qua mock OAuth flow 2 bước, CSRF/state/PKCE, từ chối đổi tài khoản, trạng thái quyền và token mã hóa. Browser desktop/mobile kiểm tra logo, CTA Google, dialog chưa cấu hình và thẻ trong Cài đặt. Logo ảnh gốc đã đồng bộ public + Android mipmap/adaptive. Cùng chứng thư bản1.2, không tạo key mới. TypeScript và các kiểm tra app hiện hành đã qua. Chưa gọi dịch vụ Google/Atlas/Render thật trong phiên này.
+
+
+Android1.4: versionCode5, default Render origin và nút kiểm tra health. Build/lint/signature/zipalign và kiểm tra địa chỉ HTTPS đã qua. Chưa chạy thiết bị thật. GET public /api/health từ môi trường bàn giao hết timeout100giây, không kết luận service lỗi và chưa xác minh Mongo/Google live.
+
+
+Web1.5: typecheck/build/test qua. Browser xác nhận signed-out bắt đầu0việc, nút tạo hướng dẫn login, mẫu chỉ qua nút opt-in và thoát mẫu trở về0việc. Existing workspace được giữ theo test; không có live Mongo/Google credentials để kiểm tra account thật trong phiên này. Android1.4 không thay đổi, không build APK mới.

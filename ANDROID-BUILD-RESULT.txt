@@ -1,7 +1,6 @@
-Gửi Khuê Nhã 1.3.0 / versionCode4 — 10/11/2026
-Gradle assembleRelease + lintVitalRelease SUCCESSFUL.
-Same certificate as 1.2.0; launcher portrait resources included.
-ZIP alignment verified. No physical device test.
+Android 1.4.0 versionCode5; 10/11/2026.
+Gradle assembleRelease/lintVitalRelease success, same certificate as1.2/1.3. ZIP alignment verified. Default origin=https://gui-khue-nha.onrender.com.
+ServerAddress default-origin validation PASS. Network check UI compiled, not run on actual device. Live health probe timed out; DB/Google runtime NOT verified.
 
 Verifies
 Verified using v1 scheme (JAR signing): true
@@ -29,4 +28,4 @@ WARNING: META-INF/androidx.interpolator_interpolator.version not protected by si
 WARNING: META-INF/androidx.lifecycle_lifecycle-runtime.version not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
 WARNING: META-INF/androidx.versionedparcelable_versionedparcelable.version not protected by signature. Unauthorized modifications to this JAR entry will not be detected. Delete or move the entry outside of META-INF/.
 
-APK SHA256: 23bc2991d07d826d11cf677977c6644f1d0f5d394fd252463f19ba14c9dfd541
+APK SHA256: 34ea484cea59af94a184f19cd9ef54f321c69e3f35ac168b911ad85e4e4d74b3

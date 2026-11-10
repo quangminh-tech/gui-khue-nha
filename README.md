@@ -1,3 +1,11 @@
+# Gửi Khuê Nhã — Web1.5, APK1.4
+
+Đọc **BAN-WEB-1.5-KHONG-TU-NAP-MAU.md**: đã sửa mặc định sổ tay trống, mẫu chỉ mở theo lựa chọn và không lưu mẫu lên MongoDB. Cập nhật repo/Render, dùng APK1.4 hiện có; không cần build APK mới cho thay đổi web này.
+
+# Gửi Khuê Nhã — Android1.4 đặt sẵn Render
+
+Đọc **BAN-1.4-RENDER.md**. APK đặt sẵn https://gui-khue-nha.onrender.com và có nút Kiểm tra kết nối Render/DB. Cùng chữ ký bản1.3, không nhúng DB URI hoặc secret trong APK.
+
 # Gửi Khuê Nhã — 1.3 Logo & Google Connect
 
 Đọc **BAN-1.3-LOGO-GOOGLE.md** và **HUONG-DAN-TRIEN-KHAI.md**. Logo ảnh chân dung đã có trên web, favicon/PWA và launcher APK. Nút Kết nối Google có trên dashboard, Cài đặt và APK. Chưa có credentials thật trong source.

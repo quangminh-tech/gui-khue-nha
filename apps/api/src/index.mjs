@@ -22,7 +22,7 @@ const calendar=createCalendarSync({db:database,getWorkspace,saveWorkspace,google
 const server=createServer(async(req,res)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');const url=new URL(req.url||'/',origin),path=url.pathname;
  try{
   if(path==='/api/health'){if(connected)await database().command({ping:1});return json(res,200,{status:connected?'ready':'demo-only',storage:connected?'mongodb':'unconfigured',googleConfigured:googleConfigured()})}
-  if(path==='/api/config')return json(res,200,{runtime:'node',release:'1.7.3',commit:process.env.RENDER_GIT_COMMIT?.slice(0,12)||null,mobileAuthVersion:2,calendarSyncVersion:1,widgetSyncVersion:1,googleConfigured:googleConfigured(),googlePickerConfigured:pickerConfigured(),aiKeyPersistence:connected&&!!process.env.APP_ENCRYPTION_KEY,aiConfigured:true,setup:googleSetup()});
+  if(path==='/api/config')return json(res,200,{runtime:'node',release:'1.7.4',commit:process.env.RENDER_GIT_COMMIT?.slice(0,12)||null,mobileAuthVersion:2,calendarSyncVersion:1,widgetSyncVersion:1,googleConfigured:googleConfigured(),googlePickerConfigured:pickerConfigured(),aiKeyPersistence:connected&&!!process.env.APP_ENCRYPTION_KEY,aiConfigured:true,setup:googleSetup()});
   if(path==='/auth/mobile/redeem'&&req.method==='POST'){if(!connected)throw bad('Backend chưa nối MongoDB.',503);return await redeemMobile(req,res,database(),origin,withMongoTransaction)}
   if(path==='/auth/google'&&req.method==='GET')return await beginGoogle(req,res,url);
   if(path==='/auth/google/callback'&&req.method==='GET')return await finishGoogle(req,res,url);

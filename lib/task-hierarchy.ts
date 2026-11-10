@@ -9,4 +9,4 @@ export function parentTree(tasks:Task[],id:string,query=''){
  const roots=allowed.filter(t=>!t.parentId||!ids.has(t.parentId));
  return {allowed,roots,visible,blocked};
 }
-export function projectChoices(tasks:Task[],current=''){return Array.from(new Set([...tasks.map(t=>t.project.trim()),current.trim()].filter(Boolean))).sort((a,b)=>a.localeCompare(b,'vi'))}
+export {projectChoices} from './projects';

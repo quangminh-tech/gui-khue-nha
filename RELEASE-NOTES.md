@@ -1,3 +1,9 @@
+# 1.7.4
+
+- Canonical domain names across menu/filter/editor/migration and Mongo writes. Whitespace, NBSP, zero-width, Unicode and case variants collapse; task identities and all contents retained.
+- Parent tree/domain CSS moved from unused root file to active imported app stylesheet. Theme variables and layout preserved in prebuilt web release.
+- Regression checks inspect the actual built CSS; Android versionCode11, same signing certificate.
+
 # 1.7.3
 
 - Save flushes pending document URL/checklist; failed saves retain draft.

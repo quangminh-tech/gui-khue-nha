@@ -1,0 +1,6 @@
+/** One domain identity across sidebar, filters, editor and persistence. */
+export function normalizeProjectName(value:string){return value.normalize('NFKC').replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+/gu,' ').trim()}
+export function projectKey(value:string){return normalizeProjectName(value).toLocaleLowerCase('vi')}
+export function projectChoices(tasks:readonly {project:string}[],current=''){const names=new Map<string,string>();for(const value of [...tasks.map(t=>t.project),current]){const name=normalizeProjectName(value);if(name&&!names.has(projectKey(name)))names.set(projectKey(name),name)}return [...names.values()].sort((a,b)=>a.localeCompare(b,'vi'))}
+export function canonicalProject(value:string,tasks:readonly {project:string}[]){const name=normalizeProjectName(value)||'Cá nhân';return projectChoices(tasks).find(p=>projectKey(p)===projectKey(name))||name}
+export function normalizeProjectTasks<T extends {project:string}>(tasks:T[]):T[]{const canonical=new Map<string,string>();return tasks.map(task=>{const name=normalizeProjectName(task.project)||'Cá nhân',key=projectKey(name);if(!canonical.has(key))canonical.set(key,name);const project=canonical.get(key)!;return project===task.project?task:{...task,project}})}

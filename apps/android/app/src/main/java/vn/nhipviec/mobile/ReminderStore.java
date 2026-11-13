@@ -5,6 +5,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.HashSet;
 public final class ReminderStore {
+ public static String alarmKey(JSONObject t){return t.optLong("dueAt")+":"+t.optInt("reminder",15);}
  static final String PREFS="khue_nha_reminders_v1";
  public static JSONObject load(Context c){try{return new JSONObject(c.getSharedPreferences(PREFS,0).getString("snapshot","{}"));}catch(Exception e){return new JSONObject();}}
  public static JSONObject validate(String raw)throws Exception{

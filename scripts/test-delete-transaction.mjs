@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
+import {hash} from '../apps/api/src/security.mjs';
+let tables=new Map(),fail=false;
+const rows=n=>{if(!tables.has(n))tables.set(n,[]);return tables.get(n)};
+const matches=(r,q)=>Object.entries(q).every(([k,v])=>typeof v==='object'&&v?.$nin?!v.$nin.includes(r[k]):r[k]===v);
+const database={collection(n){return {async findOne(q){return structuredClone(rows(n).find(r=>matches(r,q))||null)},async updateOne(q,u,opts){const old=rows(n).find(r=>matches(r,q));if(old)Object.assign(old,u.$set);else if(opts?.upsert)rows(n).push({...q,...u.$set});return {matchedCount:1}},async deleteMany(q){tables.set(n,rows(n).filter(r=>!matches(r,q)))},async bulkWrite(ops){if(fail)throw Error('injected task write failure');for(const op of ops){const {filter,replacement}=op.replaceOne;const i=rows(n).findIndex(r=>matches(r,filter));if(i<0)rows(n).push(replacement);else rows(n)[i]=replacement}}}}};
+const client={startSession:()=>({async withTransaction(work){const before=structuredClone(tables);try{return await work()}catch(e){tables=before;throw e}},async endSession(){}})};
+const context=vm.createContext({__testClient:client,__testDB:database,structuredClone,Date,Map,Set,Error});const code=readFileSync('apps/api/src/store.mjs','utf8').replace('let client,db;','let client=globalThis.__testClient,db=globalThis.__testDB;');const module=new vm.SourceTextModule(code,{context});await module.link(async spec=>{const exports=spec==='mongodb'?{MongoClient:class{}}:spec.endsWith('projects.ts')?{normalizeProjectTasks:tasks=>tasks}:{hash};const m=new vm.SyntheticModule(Object.keys(exports),function(){for(const [k,v]of Object.entries(exports))this.setExport(k,v)},{context});return m});await module.evaluate();const {saveWorkspace}=module.namespace;
+rows('workspaces').push({_id:'owner',version:1});rows('tasks').push({owner:'owner',id:'old',project:'Test',title:'Old task'},{owner:'owner',id:'keep',project:'Test',title:'Keep'},{owner:'other',id:'private',project:'Other'});rows('calendar_links').push({_id:'link',owner:'owner',taskId:'old',eventId:'original-google',origin:'google'});
+const data={members:[],tasks:[{id:'keep',project:'Test',title:'Keep'}]};fail=true;await assert.rejects(saveWorkspace('owner',data,1,['old']),/injected/);assert(rows('tasks').some(t=>t.id==='old'));assert.equal(rows('calendar_deletions').length,0);assert.equal(rows('workspaces')[0].version,1);
+fail=false;assert.equal(await saveWorkspace('owner',data,1,['old']),2);assert(!rows('tasks').some(t=>t.id==='old'));assert(rows('tasks').some(t=>t.id==='private'));assert.equal(rows('calendar_deletions')[0].eventId,'original-google');assert.equal(rows('calendar_deletions')[0].status,'pending');
+await assert.rejects(saveWorkspace('owner',{...data,tasks:[]},1,['keep']),/thiết bị khác/);assert.equal(rows('calendar_deletions').length,1);
+await assert.rejects(saveWorkspace('owner',data,2,['private']),/sổ tay/);assert(rows('tasks').some(t=>t.id==='private'));
+assert.equal(await saveWorkspace('owner',{...data,tasks:[]},2,[],['keep']),3);assert.equal(rows('calendar_deletions').find(t=>t.taskId==='keep').status,'kept');
+console.log('PASS task/delete outbox atomic rollback on write failure; linked Google origin resolved; owner isolation; stale version; explicit keep-original tombstone. Mock transactional DB.');

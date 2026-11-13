@@ -22,7 +22,7 @@ const calendar=createCalendarSync({db:database,getWorkspace,saveWorkspace,google
 const server=createServer(async(req,res)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');const url=new URL(req.url||'/',origin),path=url.pathname;
  try{
   if(path==='/api/health'){if(connected)await database().command({ping:1});return json(res,200,{status:connected?'ready':'demo-only',storage:connected?'mongodb':'unconfigured',googleConfigured:googleConfigured()})}
-  if(path==='/api/config')return json(res,200,{runtime:'node',release:'1.7.4',commit:process.env.RENDER_GIT_COMMIT?.slice(0,12)||null,mobileAuthVersion:2,calendarSyncVersion:1,widgetSyncVersion:1,googleConfigured:googleConfigured(),googlePickerConfigured:pickerConfigured(),aiKeyPersistence:connected&&!!process.env.APP_ENCRYPTION_KEY,aiConfigured:true,setup:googleSetup()});
+  if(path==='/api/config')return json(res,200,{runtime:'node',release:'1.7.6',commit:process.env.RENDER_GIT_COMMIT?.slice(0,12)||null,mobileAuthVersion:2,calendarSyncVersion:2,widgetSyncVersion:2,googleConfigured:googleConfigured(),googlePickerConfigured:pickerConfigured(),aiKeyPersistence:connected&&!!process.env.APP_ENCRYPTION_KEY,aiConfigured:true,setup:googleSetup()});
   if(path==='/auth/mobile/redeem'&&req.method==='POST'){if(!connected)throw bad('Backend chưa nối MongoDB.',503);return await redeemMobile(req,res,database(),origin,withMongoTransaction)}
   if(path==='/auth/google'&&req.method==='GET')return await beginGoogle(req,res,url);
   if(path==='/auth/google/callback'&&req.method==='GET')return await finishGoogle(req,res,url);
@@ -31,6 +31,7 @@ const server=createServer(async(req,res)=>{res.setHeader('X-Content-Type-Options
    if(req.method!=='GET'&&req.headers.origin!==origin)throw bad('Yêu cầu khác nguồn không được chấp nhận.',403);
    const user=connected?await currentUser(req):null;if(!user)throw bad('Đăng nhập Google để lưu vào tài khoản.',401);
    if(path==='/api/android/snapshot'&&req.method==='GET'){const w=await getWorkspace(user._id);return json(res,200,androidSnapshot(w.data?.tasks||[],{...w.data?.settings,name:w.data?.settings?.name||user.name}))}
+   if(path==='/api/google/calendar/deletions'&&req.method==='POST')return json(res,200,await calendar.sync(user._id,{deletionsOnly:true}));
    if(path==='/api/google/calendar/status'&&req.method==='GET')return json(res,200,await calendar.status(user._id));
    if(path==='/api/google/calendar/two-way'&&req.method==='POST'){const body=await bodyJson(req,2000);if(typeof body.enabled==='boolean')await calendar.configure(user._id,body.enabled);return json(res,200,body.enabled===false?await calendar.status(user._id):await calendar.sync(user._id))}
    if(path==='/api/auth/session'&&req.method==='POST')return json(res,200,await renewSession(req,res,database(),origin));
@@ -38,7 +39,7 @@ const server=createServer(async(req,res)=>{res.setHeader('X-Content-Type-Options
    if(path==='/api/auth/logout'&&req.method==='POST'){await database().collection('sessions').deleteOne({_id:hash(cookies(req).kn_session||'')});res.setHeader('Set-Cookie',cookie('kn_session','',0,origin));return json(res,200,{ok:true})}
    if(path==='/api/workspace'){
     if(req.method==='GET')return json(res,200,await getWorkspace(user._id));
-    if(req.method==='POST'){const input=await bodyJson(req),parsed=dataSchema.safeParse(input.data);if(!parsed.success||!Number.isSafeInteger(input.version)||input.version<0)throw bad('Thông tin công việc hoặc cài đặt không hợp lệ.');const relationError=workspaceRelationshipError(parsed.data);if(relationError)throw bad(relationError);const version=await saveWorkspace(user._id,parsed.data,input.version);return json(res,200,{version,data:parsed.data})}
+    if(req.method==='POST'){const input=await bodyJson(req),parsed=dataSchema.safeParse(input.data);if(!parsed.success||!Number.isSafeInteger(input.version)||input.version<0)throw bad('Thông tin công việc hoặc cài đặt không hợp lệ.');const relationError=workspaceRelationshipError(parsed.data);if(relationError)throw bad(relationError);const version=await saveWorkspace(user._id,parsed.data,input.version,input.calendarDeleteIds||[],input.calendarKeepIds||[]);return json(res,200,{version,data:parsed.data})}
    }
    if(path==='/api/google/status'&&req.method==='GET')return json(res,200,await googleStatus(user));
    if(path==='/api/google/picker-token'&&req.method==='POST'){if(!pickerConfigured())throw bad('Chưa cấu hình Google Picker trong backend.',503);return json(res,200,{accessToken:await googleToken(user._id,'https://www.googleapis.com/auth/drive.file'),pickerKey:process.env.GOOGLE_PICKER_API_KEY,appId:process.env.GOOGLE_CLOUD_PROJECT_NUMBER})}

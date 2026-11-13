@@ -1,5 +1,5 @@
-Gửi Khuê Nhã 1.7.4
-Build SUCCESSFUL; vn.nhipviec.mobile; versionCode11.
-Signature matches original release certificate; zipalign verified.
-Read HUONG-DAN-1.7.4.md. Update Render source as well as APK.
-Not installed on a physical device in this session.
+Gửi Khuê Nhã 1.7.6
+Release built; vn.nhipviec.mobile; versionCode13.
+Original signing certificate and zipalign verified.
+Update Render source before installing APK.
+No physical-phone test in this session.

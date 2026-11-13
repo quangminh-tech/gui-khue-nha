@@ -1,3 +1,18 @@
+# 1.7.6
+
+- Shared reminder preset/custom amount-unit control in task editor and settings.
+- Minutes/hours/days with validation, whole-minute conversion, max7 days, explicit off.
+- Invalid input blocks saving; saved minutes round-trip through schema, Calendar and native snapshot.
+- Android versionCode13; same package and signing certificate.
+
+# 1.7.5
+
+- Dynamic Pomodoro companion and color; corrected Rhinedottir asset.
+- Full-width accessible checkbox button with in-flight lock/error retention.
+- Explicit delete/keep Calendar decision, atomic outbox with task deletion, legacy link registration, out-of-window delete and conditional retry.
+- Custom reminder minutes and native future-alarm prioritization/notification permission/exact-alarm opt-in/delivery dedupe.
+- Same Android package/signing key, versionCode12.
+
 # 1.7.4
 
 - Canonical domain names across menu/filter/editor/migration and Mongo writes. Whitespace, NBSP, zero-width, Unicode and case variants collapse; task identities and all contents retained.

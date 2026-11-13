@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import {create,act} from 'react-test-renderer';
+import {createServer} from 'vite';
+import {readFileSync,readdirSync} from 'node:fs';
+import {eventPayload,eventFields} from '../apps/api/src/calendar-sync.mjs';
+import {androidSnapshot} from '../shared/android-snapshot.mjs';
+globalThis.IS_REACT_ACT_ENVIRONMENT=true;globalThis.document={body:{style:{overflow:''}}};globalThis.window={addEventListener(){},removeEventListener(){}};
+const vite=await createServer({configFile:'apps/web/vite.config.ts',server:{middlewareMode:true},appType:'custom'});
+try{
+ const get=path=>vite.ssrLoadModule('/@fs/'+process.cwd()+'/'+path);
+ const {parseReminderInput}=await get('lib/reminder-input.ts');
+ for(const [raw,unit,minutes] of [['37','minute',37],['2','hour',120],['1.5','hour',90],['2','day',2880],['7','day',10080]])assert.equal(parseReminderInput(raw,unit).minutes,minutes);
+ for(const [raw,unit] of [['','minute'],['-2','hour'],['0','minute'],['0.5','minute'],['8','day'],['Infinity','hour']])assert(parseReminderInput(raw,unit).error);
+ const {default:Editor}=await get('features/app/task-editor.tsx'),{blank}=await get('lib/journal.ts'),{dataSchema}=await get('lib/journal-schema.ts');
+ let task={...blank(),title:'Custom reminder'},saved=[],renderer;const props=()=>({initial:task,tasks:[],busy:false,googleReady:false,calendarReady:false,onClose(){},onSave:async t=>{saved.push(t);task=dataSchema.parse({members:[],tasks:[t]}).tasks[0];return true},onDelete(){},onChild(){},onOpen(){},onDrive:async()=>[],onCalendar(){}});
+ const field=label=>renderer.root.findByProps({'aria-label':label});const set=async(label,value)=>act(async()=>field(label).props.onChange({target:{value}}));
+ await act(async()=>renderer=create(React.createElement(Editor,props())));
+ assert(field('Nhắc trước').findAllByType('option').some(o=>o.props.value==='custom'));
+ await set('Nhắc trước','custom');await set('Nhắc trước — số lượng','2');await set('Nhắc trước — đơn vị','hour');
+ await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));assert.equal(saved[0].reminder,120);
+ await act(async()=>renderer.unmount());await act(async()=>renderer=create(React.createElement(Editor,props())));assert.equal(field('Nhắc trước').props.value,'custom');assert.equal(field('Nhắc trước — số lượng').props.value,'2');assert.equal(field('Nhắc trước — đơn vị').props.value,'hour');
+ await set('Nhắc trước — số lượng','');let count=saved.length;await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));assert.equal(saved.length,count,'Invalid custom cannot silently save old minutes');
+ await set('Nhắc trước — số lượng','8');await set('Nhắc trước — đơn vị','day');assert(field('Nhắc trước — số lượng').props['aria-invalid']);
+ await set('Nhắc trước — số lượng','1.5');await set('Nhắc trước — đơn vị','hour');await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));assert.equal(task.reminder,90);
+ assert.equal(eventPayload(task).reminders.overrides[0].minutes,90);assert.equal(eventFields({...eventPayload(task),id:'test'}).reminder,90);
+ const snap=androidSnapshot([{...task,due:'2026-12-01',time:'09:00'}],{},+new Date('2026-11-14T00:00:00Z'));assert.equal(snap.tasks[0].reminder,90);
+ await set('Nhắc trước','0');await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));assert.equal(task.reminder,0);assert.equal(eventPayload(task).reminders.overrides.length,0);await act(async()=>renderer.unmount());
+ const {default:Settings}=await get('features/app/settings-view.tsx'),{DEFAULT_SETTINGS}=await get('lib/app-model.ts');let settingsSaved;
+ await act(async()=>renderer=create(React.createElement(Settings,{settings:DEFAULT_SETTINGS,busy:false,config:{runtime:'node',googleConfigured:false,googlePickerConfigured:false,aiKeyPersistence:false,aiConfigured:false},keyReady:false,signedIn:false,onLogout(){},onChange:s=>settingsSaved=s,onKey:async()=>{},onRemoveKey(){},onExport(){},onReset(){},onPomodoro(){},onDisconnect(){},onPreviewReminder(){},onAndroid(){}})));
+ await set('Nhắc trước mặc định','custom');await set('Nhắc trước mặc định — số lượng','2');await set('Nhắc trước mặc định — đơn vị','day');const text=n=>typeof n==='string'?n:(n.children||[]).map(text).join('');const saveSettings=()=>renderer.root.findAllByType('button').find(b=>text(b)==='Lưu cài đặt');assert(!saveSettings().props.disabled);await act(async()=>saveSettings().props.onClick());assert.equal(settingsSaved.defaultReminder,2880);await set('Nhắc trước mặc định — số lượng','');assert(saveSettings().props.disabled);await act(async()=>renderer.unmount());
+ const cssFile=readdirSync('apps/web/dist/assets').find(f=>f.endsWith('.css'));const css=readFileSync('apps/web/dist/assets/'+cssFile,'utf8');assert(/\.kn-reminder-custom[^{}]*\{[^}]*display:grid/.test(css));
+ console.log('PASS custom reminder dropdown→amount/unit→save→schema→reopen; minutes/hours/days/decimals; invalid blank/negative/too-large blocked; off; Calendar and Android same minutes; custom-field CSS in actual build. React/mock, not phone/provider integration.');
+}finally{await vite.close()}

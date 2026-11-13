@@ -1,5 +1,5 @@
-Gửi Khuê Nhã 1.7.6
-Release built; vn.nhipviec.mobile; versionCode13.
+Gửi Khuê Nhã 1.7.7
+Release built; vn.nhipviec.mobile; versionCode14.
 Original signing certificate and zipalign verified.
 Update Render source before installing APK.
 No physical-phone test in this session.

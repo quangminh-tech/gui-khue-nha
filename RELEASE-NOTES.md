@@ -1,3 +1,13 @@
+# 1.7.7
+
+- Shared bounded recurrence engine: daily/weekly/monthly/yearly/custom, weekdays, COUNT, UNTIL, exclusions, anchored month-end/leap-year clamping.
+- Start/deadline date spans rendered on every affected month/day calendar date; next-month selection reset.
+- Stable virtual occurrence IDs, independent checklist/status; this/future/all edits and deletions preserve stored history and valid parent relationships.
+- Retention excludes removed completed occurrences from regeneration and preserves templates.
+- Calendar individual-event rolling sync (past30/future60, 40 pushes/pass), per-instance pulls, legacy root-link migration and scoped transactional deletion outbox; Android snapshots expand upcoming occurrences.
+- Android versionCode14; same package and signing certificate.
+- React form/calendar and mock provider/storage regressions; no real device/Google-account run.
+
 # 1.7.6
 
 - Shared reminder preset/custom amount-unit control in task editor and settings.

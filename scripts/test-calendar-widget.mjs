@@ -1,3 +1,4 @@
+import {instantiate,instanceId,saveScheduledTask,deleteScheduledTask,localToday} from '../shared/scheduling.mjs';
 import assert from 'node:assert/strict';
 import {createCalendarSync,eventFields,eventPayload,taskFingerprint} from '../apps/api/src/calendar-sync.mjs';
 import {androidSnapshot} from '../shared/android-snapshot.mjs';
@@ -41,4 +42,12 @@ events.set('retry-old',{...oldEvent,id:'retry-old'});table('calendar_deletions')
 const crowded=Array.from({length:40},(_,i)=>task('expired-'+i,{due:'2020-01-01'}));const future=task('future-alarm',{due:'2026-11-11',reminder:37});const alarmSnap=androidSnapshot([...crowded,future],{},now);assert.equal(alarmSnap.tasks[0].id,'future-alarm');assert.equal(alarmSnap.tasks[0].reminder,37);assert(alarmSnap.widgetTasks.some(t=>t.id.startsWith('expired-')));
 assert.equal(eventPayload(task('custom',{reminder:37})).reminders.overrides[0].minutes,37);assert.equal(eventFields({...oldEvent,reminders:{useDefault:false,overrides:[{method:'popup',minutes:37}]}}).reminder,37);
 console.log('PASS explicit Google deletion: old imported event while sync disabled; idempotent drain; unrelated/other owner untouched; keep-original tombstone; future reminders survive 40 overdue tasks; custom Calendar reminder minutes.');
+// App-managed recurrence: bounded event projection; no virtual rows persisted until edited.
+tables.clear();events.clear();w={data:{tasks:[{...task('daily-series'),startDate:localToday(),due:localToday(),recurrence:{freq:'daily',interval:1,count:3},repeat:'none'}],members:[],settings:{name:'Test'}},version:1};
+await api.configure('a',true);result=await api.sync('a');assert.equal(w.data.tasks.length,1);assert.equal(result.pushed,3);assert(!events.has(hash('a:daily-series')));const series=w.data.tasks[0],date1=series.startDate,date2=new Date(Date.parse(date1+'T00:00:00Z')+86400000).toISOString().slice(0,10),firstId=instanceId(series.id,date1),secondId=instanceId(series.id,date2);
+const eventCount=events.size;await api.sync('a');assert.equal(events.size,eventCount);
+w.data.tasks=saveScheduledTask(w.data.tasks,{...instantiate(series,date1),status:'done',completedAt:date1,checklist:[{id:'step',text:'Keep me',done:true}]});w.version++;await api.sync('a');assert.equal(events.get(hash('a:'+firstId)).extendedProperties.private.knStatus,'done');
+const event2=events.get(hash('a:'+secondId));events.set(event2.id,{...event2,summary:'Edited one Google occurrence',etag:'edited-second'});await api.sync('a');assert.equal(w.data.tasks.length,3);assert.equal(w.data.tasks.find(t=>t.id===secondId).title,'Edited one Google occurrence');assert.equal(w.data.tasks.find(t=>t.id===series.id).title,'daily-series');assert(w.data.tasks.find(t=>t.id===firstId).checklist[0].done);
+w.data.tasks=deleteScheduledTask(w.data.tasks,w.data.tasks.find(t=>t.id===secondId),'this');w.version++;await api.sync('a');assert(!events.has(hash('a:'+secondId)));assert(events.has(hash('a:'+firstId)));
+console.log('PASS Calendar recurrence: three dates, no master event or eager persistence, idempotent repeat sync, one occurrence completion/pull preserves series and other checklist, excluded occurrence deletes its linked event.');
 console.log('PASS Calendar and widget: bidirectional edits, imports, idempotence, preserved checklist, conflict/412, safe deletion, all-day duration, owner isolation, today/urgent/overdue, Vietnam midnight. Mock Google/Mongo; not device/provider integration.');

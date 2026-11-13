@@ -5,6 +5,7 @@ import {Readable} from 'node:stream';
 import * as mobile from '../apps/api/src/mobile-auth.mjs';
 import * as session from '../apps/api/src/session.mjs';
 import * as security from '../apps/api/src/security.mjs';
+import * as scheduling from '../shared/scheduling.mjs';
 import * as flow from '../shared/google-connect.mjs';
 const env={MONGODB_URI:'mongodb+srv://placeholder.invalid',APP_ENCRYPTION_KEY:Buffer.alloc(32,5).toString('base64'),GOOGLE_CLIENT_ID:'test.apps.googleusercontent.com',GOOGLE_CLIENT_SECRET:'placeholder',APP_ORIGIN:'https://test.onrender.com'};
 Object.assign(process.env,env);
@@ -17,7 +18,7 @@ const db={collection(name){if(!tables.has(name))tables.set(name,new Map());const
 let account='alice',scopes='openid email profile';
 const context=vm.createContext({process,Buffer,URL,URLSearchParams,Date,AbortSignal,console,fetch:async(url)=>({ok:true,json:async()=>String(url).includes('/token')?{access_token:'provider-token',refresh_token:'provider-refresh',expires_in:3600,scope:scopes}:{sub:account,email:account+'@example.test',email_verified:true,name:account}})});
 const module=new vm.SourceTextModule(await readFile(new URL('../apps/api/src/google.mjs',import.meta.url),'utf8'),{context});
-await module.link(async(spec)=>{const exports=spec.endsWith('store.mjs')?{database:()=>db}:spec.endsWith('security.mjs')?security:spec.endsWith('mobile-auth.mjs')?mobile:spec.endsWith('session.mjs')?session:flow;const keys=Object.keys(exports);return new vm.SyntheticModule(keys,function(){for(const key of keys)this.setExport(key,exports[key])},{context})});await module.evaluate();
+await module.link(async(spec)=>{const exports=spec.endsWith('scheduling.mjs')?scheduling:spec.endsWith('store.mjs')?{database:()=>db}:spec.endsWith('security.mjs')?security:spec.endsWith('mobile-auth.mjs')?mobile:spec.endsWith('session.mjs')?session:flow;const keys=Object.keys(exports);return new vm.SyntheticModule(keys,function(){for(const key of keys)this.setExport(key,exports[key])},{context})});await module.evaluate();
 const {beginGoogle,finishGoogle,googleStatus}=module.namespace;
 const capture=()=>({status:0,headers:{},writeHead(status,headers){this.status=status;this.headers=headers},end(body){this.body=body}});
 const req=(cookie='')=>({headers:{cookie}});

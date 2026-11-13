@@ -6,8 +6,8 @@ android {
         applicationId 'vn.nhipviec.mobile'
         minSdk 23
         targetSdk 35
-        versionCode 13
-        versionName '1.7.6'
+        versionCode 14
+        versionName '1.7.7'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     signingConfigs {

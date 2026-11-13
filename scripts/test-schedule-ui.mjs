@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import {create,act} from 'react-test-renderer';
+import {createServer} from 'vite';
+import {addDays,localToday} from '../shared/scheduling.mjs';
+globalThis.IS_REACT_ACT_ENVIRONMENT=true;const memory=new Map();globalThis.localStorage={getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)};globalThis.sessionStorage={getItem:()=>null,setItem(){}};globalThis.document={hidden:false,body:{style:{overflow:''}},addEventListener(){},removeEventListener(){}};globalThis.window={addEventListener(){},removeEventListener(){},scrollTo(){}};globalThis.location={href:'http://localhost:3000/',origin:'http://localhost:3000',search:''};globalThis.history={replaceState(){}};
+Object.defineProperty(globalThis,'navigator',{value:{userAgent:'Test React',clipboard:{writeText:async()=>{}}},configurable:true});
+globalThis.fetch=async input=>{const path=String(input);return new Response(JSON.stringify(path.includes('/api/config')?{runtime:'node',googleConfigured:false}:{}),{status:path.includes('/api/workspace')||path.includes('/api/google/status')?401:200,headers:{'Content-Type':'application/json'}})};
+const vite=await createServer({configFile:'apps/web/vite.config.ts',server:{middlewareMode:true},appType:'custom'});
+try{
+ const get=path=>vite.ssrLoadModule('/@fs/'+process.cwd()+'/'+path),{default:Editor}=await get('features/app/task-editor.tsx'),{blank}=await get('lib/journal.ts'),{DEFAULT_SETTINGS}=await get('lib/app-model.ts');
+ const date=localToday(),start=date.slice(0,8)+'14',end=date.slice(0,8)+'20';let saved,renderer;
+ await act(async()=>renderer=create(React.createElement(Editor,{initial:{...blank(),title:'Monthly range',due:end,startDate:start},tasks:[],busy:false,googleReady:false,calendarReady:false,onClose(){},onSave:async task=>{saved=task;return true},onDelete(){},onChild(){},onOpen(){},onDrive:async()=>[],onCalendar(){}})));
+ const field=label=>renderer.root.findByProps({'aria-label':label});await act(async()=>field('Lặp lại').props.onChange({target:{value:'monthly'}}));await act(async()=>field('Kết thúc lặp').props.onChange({target:{value:'count'}}));await act(async()=>field('Số lần lặp').props.onChange({target:{value:'3'}}));await act(async()=>renderer.root.findByType('form').props.onSubmit({preventDefault(){}}));assert.equal(saved.recurrence.freq,'monthly');assert.equal(saved.recurrence.count,3);assert.equal(saved.startDate,start);await act(async()=>renderer.unmount());
+ const base={...blank(),startDate:start,due:start,checklist:[{id:'c',text:'Daily step',done:false}]};memory.set('khue-nha-local-journal-v1',JSON.stringify({savedAt:new Date().toISOString(),lastCleanupAt:new Date().toISOString(),data:{members:[],settings:DEFAULT_SETTINGS,tasks:[{...base,id:'range',title:'Spans a week',startDate:start,due:end},{...base,id:'repeat',title:'Daily recurring',recurrence:{freq:'daily',interval:1,count:7},repeat:'none'}]}}));
+ const {default:App}=await get('features/app/app-shell.tsx');await act(async()=>{renderer=create(React.createElement(App));await new Promise(r=>setTimeout(r,20))});
+ const text=n=>typeof n==='string'?n:(n.children||[]).map(text).join('');const button=label=>renderer.root.findAllByType('button').find(b=>text(b)===label);assert(button('Lịch'));await act(async()=>button('Lịch').props.onClick());
+ for(let n=14;n<=20;n++){const key=date.slice(0,8)+String(n);const day=renderer.root.findByProps({'aria-label':'Ngày '+key});assert(text(day).includes('Spans a week'));assert(text(day).includes('Daily recurring'));assert(text(day).includes('↻'));}
+ await act(async()=>button('Theo ngày').props.onClick());const agenda=renderer.root.findByProps({className:'kn-calendar-agenda'});assert.equal(agenda.findAllByType('section').filter(s=>text(s).includes('Spans a week')).length,7);
+ await act(async()=>renderer.root.findByProps({'aria-label':'Tháng sau'}).props.onClick());const dayAgenda=renderer.root.findAll(n=>typeof n.props.className==='string'&&n.props.className.split(' ').includes('kn-day-agenda'))[0];assert(!text(dayAgenda).includes('14/'),'Month navigation selects the new month, not stale day');
+ await act(async()=>renderer.unmount());console.log('PASS UI: create monthly range/count via real form; full App local journal loads; every range day and daily recurrence appears in month cells with ↻; agenda spans seven days; month navigation resets selected day. React renderer, no browser/device test.');
+}finally{await vite.close()}
